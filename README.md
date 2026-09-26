@@ -23,23 +23,21 @@
  <div class="checkout-box">
         <h2>Order Checkout</h2>
         <p style="font-size: 13px; color: #718096; margin-bottom: 20px;">We require your live Google Maps location pin to dispatch your order.</p>
+  <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
+      
+   <div id="locationStatusDisplay" class="location-status">
+        ❌ No location pinned yet. Please click the button above.
+        </div>
 
-   <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
-        
-  <div id="locationStatusDisplay" class="location-status">
-            ❌ No location pinned yet. Please click the button above.
-  </div>
-     <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
+   <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
         <div id="checkoutSummary" style="text-align: left;"></div>
 
-
-  <button class="btn" onclick="placeOrder()">Place Order Now</button>
+   <button class="btn" onclick="placeOrder()">Place Order Now</button>
         <button class="btn btn-back" onclick="returnToMenu()">← Return to Menu</button>
     </div>
 
 <script>
-    // Your Firebase Database URL
-    const FIREBASE_URL = "https://test-d34cf-default-rtdb.firebaseio.com";
+    const FIREBASE_URL = "https://test-d34cf-default-rtdb.europe-west1.firebasedatabase.app";
 
     const phone = localStorage.getItem('activeCustomerPhone') || 'Customer_' + Math.floor(Math.random() * 9000 + 1000);
     let cartKey = 'cart_' + phone;
@@ -116,14 +114,12 @@
         };
 
         try {
-            // Fetch existing orders from Firebase
             let res = await fetch(`${FIREBASE_URL}/orders.json`);
             let orders = await res.json();
             if (!Array.isArray(orders)) orders = [];
 
             orders.unshift(newOrder);
 
-            // Save updated array back to Firebase
             await fetch(`${FIREBASE_URL}/orders.json`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -139,7 +135,7 @@
     }
 
     function returnToMenu() {
-        window.location.href = 'https://kshitij-bhuwania.github.io/Menu/';
+        window.location.href = 'menu.html';
     }
 
     renderSummary();
