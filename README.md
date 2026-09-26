@@ -19,7 +19,6 @@
     </style>
 </head>
 <body>
-
   <div class="checkout-box">
         <h2>Order Checkout</h2>
         <p style="font-size: 13px; color: #718096; margin-bottom: 20px;">We require your live Google Maps location pin to dispatch your order.</p>
@@ -29,8 +28,7 @@
    <div id="locationStatusDisplay" class="location-status">
             ❌ No location pinned yet. Please click the button above.
         </div>
-
-   <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
+    <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
         <div id="checkoutSummary" style="text-align: left;"></div>
 
    <button class="btn" onclick="placeOrder()">Place Order Now</button>
@@ -38,9 +36,10 @@
     </div>
 
 <script>
-    const orderChannel = new BroadcastChannel('restaurant_live_orders_channel');
+    // Shared public multi-device sync endpoint
+    const SYNC_URL = "https://api.npoint.io/7581c3e382d61d1e1147";
 
-    const phone = localStorage.getItem('activeCustomerPhone') || 'Guest_' + Math.floor(Math.random() * 1000);
+    const phone = localStorage.getItem('activeCustomerPhone') || 'Mobile_' + Math.floor(Math.random() * 9000 + 1000);
     let cartKey = 'cart_' + phone;
     let cart = JSON.parse(localStorage.getItem(cartKey) || '{}');
     let deliveryCharge = parseInt(localStorage.getItem('deliveryCharge') || '40');
@@ -60,7 +59,7 @@
         }
 
         if (!hasItems) {
-            html += '<p style="color: #e53e3e; font-size: 13px; text-align: center;">Your cart is currently empty. Add items from the menu first.</p>';
+            html += '<p style="color: #e53e3e; font-size: 13px; text-align: center;">Your cart is empty. Add menu items first.</p>';
         }
 
         let grandTotal = itemTotal > 0 ? itemTotal + deliveryCharge : 0;
@@ -87,11 +86,11 @@
             statusBox.style.color = '#22543d';
             statusBox.innerHTML = `✅ Location Pinned Successfully!<br><a href="${verifiedMapsLink}" target="_blank" style="color:#2b6cb0; font-size:12px;">View Coordinates on Map ↗</a>`;
         }, () => {
-            alert('Unable to retrieve location. Please allow GPS permissions in your browser.');
+            alert('Unable to retrieve location. Please allow GPS permissions.');
         });
     }
 
-    window.placeOrder = function() {
+    async function placeOrder() {
         if (!verifiedMapsLink) {
             alert('Error: You must fetch your Google Maps location pin before you can check out!');
             return;
@@ -99,7 +98,7 @@
 
         let itemTotal = Object.values(cart).reduce((sum, i) => sum + (i.price * i.quantity), 0);
         if (itemTotal === 0) {
-            alert('Your cart is empty! Please add items first.');
+            alert('Your cart is empty!');
             return;
         }
 
@@ -114,31 +113,36 @@
             timestamp: new Date().toLocaleTimeString()
         };
 
-        // Pull existing global live orders
-        let existingOrders = [];
         try {
-            let data = localStorage.getItem('globalLiveOrders');
-            if (data) existingOrders = JSON.parse(data);
-        } catch (e) {
-            existingOrders = [];
+            // Fetch live array from the shared public node
+            let response = await fetch(SYNC_URL);
+            let orders = [];
+            if (response.ok) {
+                let data = await response.json();
+                if (Array.isArray(data)) orders = data;
+            }
+
+            newOrder.serialNumber = orders.length + 1;
+            orders.unshift(newOrder);
+
+            // Push synchronized array back instantly
+            await fetch(SYNC_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orders)
+            });
+
+            localStorage.removeItem(cartKey);
+            alert('Order placed successfully from another mobile device!');
+            window.location.href = 'menu.html';
+        } catch (error) {
+            alert('Network sync issue. Please check your internet connection.');
         }
+    }
 
-        newOrder.serialNumber = existingOrders.length + 1;
-        existingOrders.unshift(newOrder);
-
-        // Save back to synchronized storage
-        localStorage.setItem('globalLiveOrders', JSON.stringify(existingOrders));
-        orderChannel.postMessage('update_orders');
-
-        // Clear cart
-        localStorage.removeItem(cartKey);
-        alert('Order placed successfully! Sent to kitchen.');
+    function returnToMenu() {
         window.location.href = 'menu.html';
-    };
-
-    window.returnToMenu = function() {
-        window.location.href = 'menu.html';
-    };
+    }
 
     renderSummary();
 </script>
