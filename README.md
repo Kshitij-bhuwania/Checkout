@@ -20,30 +20,27 @@
 </head>
 <body>
 
- <div class="checkout-box">
+  <div class="checkout-box">
         <h2>Order Checkout</h2>
         <p style="font-size: 13px; color: #718096; margin-bottom: 20px;">We require your live Google Maps location pin to dispatch your order.</p>
-     <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
-              <div id="locationStatusDisplay" class="location-status">
+
+   <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
+        
+   <div id="locationStatusDisplay" class="location-status">
             ❌ No location pinned yet. Please click the button above.
         </div>
 
    <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
-       <div id="checkoutSummary" style="text-align: left;"></div>
+        <div id="checkoutSummary" style="text-align: left;"></div>
 
    <button class="btn" onclick="placeOrder()">Place Order Now</button>
         <button class="btn btn-back" onclick="returnToMenu()">← Return to Menu</button>
     </div>
 
 <script>
-    // Zero-setup public sync endpoint built specifically for cross-device web testing
-    const SYNC_URL = "https://jsonbin.org/kshitij_restaurant_live_orders_sync/orders";
+    const orderChannel = new BroadcastChannel('restaurant_live_orders_channel');
 
-    const phone = localStorage.getItem('activeCustomerPhone');
-    if (!phone) {
-        window.location.href = 'login.html';
-    }
-
+    const phone = localStorage.getItem('activeCustomerPhone') || 'Guest_' + Math.floor(Math.random() * 1000);
     let cartKey = 'cart_' + phone;
     let cart = JSON.parse(localStorage.getItem(cartKey) || '{}');
     let deliveryCharge = parseInt(localStorage.getItem('deliveryCharge') || '40');
@@ -63,7 +60,7 @@
         }
 
         if (!hasItems) {
-            html += '<p style="color: #e53e3e; font-size: 13px; text-align: center;">Your cart is currently empty.</p>';
+            html += '<p style="color: #e53e3e; font-size: 13px; text-align: center;">Your cart is currently empty. Add items from the menu first.</p>';
         }
 
         let grandTotal = itemTotal > 0 ? itemTotal + deliveryCharge : 0;
@@ -94,7 +91,7 @@
         });
     }
 
-    async function placeOrder() {
+    window.placeOrder = function() {
         if (!verifiedMapsLink) {
             alert('Error: You must fetch your Google Maps location pin before you can check out!');
             return;
@@ -117,44 +114,31 @@
             timestamp: new Date().toLocaleTimeString()
         };
 
+        // Pull existing global live orders
+        let existingOrders = [];
         try {
-            // Pull current live orders from shared cloud endpoint
-            let response = await fetch(SYNC_URL);
-            let orders = [];
-            if (response.ok) {
-                let data = await response.json();
-                if (Array.isArray(data)) orders = data;
-            }
-
-            newOrder.serialNumber = orders.length + 1;
-            orders.unshift(newOrder);
-
-            // Push updated array back instantly
-            await fetch(SYNC_URL, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(orders)
-            });
-
-            localStorage.removeItem(cartKey);
-            alert('Order placed successfully!');
-            window.location.href = 'menu.html';
-        } catch (error) {
-            // Fallback to local storage if network drops
-            let localOrders = JSON.parse(localStorage.getItem('liveOrders') || '[]');
-            newOrder.serialNumber = localOrders.length + 1;
-            localOrders.unshift(newOrder);
-            localStorage.setItem('liveOrders', JSON.stringify(localOrders));
-
-            localStorage.removeItem(cartKey);
-            alert('Order placed successfully!');
-            window.location.href = 'menu.html';
+            let data = localStorage.getItem('globalLiveOrders');
+            if (data) existingOrders = JSON.parse(data);
+        } catch (e) {
+            existingOrders = [];
         }
-    }
 
-    function returnToMenu() {
+        newOrder.serialNumber = existingOrders.length + 1;
+        existingOrders.unshift(newOrder);
+
+        // Save back to synchronized storage
+        localStorage.setItem('globalLiveOrders', JSON.stringify(existingOrders));
+        orderChannel.postMessage('update_orders');
+
+        // Clear cart
+        localStorage.removeItem(cartKey);
+        alert('Order placed successfully! Sent to kitchen.');
         window.location.href = 'menu.html';
-    }
+    };
+
+    window.returnToMenu = function() {
+        window.location.href = 'menu.html';
+    };
 
     renderSummary();
 </script>
