@@ -20,27 +20,29 @@
 </head>
 <body>
 
-  <div class="checkout-box">
+    <div class="checkout-box">
         <h2>Order Checkout</h2>
         <p style="font-size: 13px; color: #718096; margin-bottom: 20px;">We require your live Google Maps location pin to dispatch your order.</p>
 
-   <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
-           <div id="locationStatusDisplay" class="location-status">
+        <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
+        
+        <div id="locationStatusDisplay" class="location-status">
             ❌ No location pinned yet. Please click the button above.
         </div>
 
-   <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
+        <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
         <div id="checkoutSummary" style="text-align: left;"></div>
 
-   <button class="btn" onclick="placeOrder()">Place Order Now</button>
+        <button class="btn" onclick="placeOrder()">Place Order Now</button>
         <button class="btn btn-back" onclick="returnToMenu()">← Return to Menu</button>
     </div>
 
 <script>
-    // Universal public cloud storage bin using jsonbin.io open public container
-    const BIN_URL = "https://api.jsonbin.io/v3/b/6618c6e2acd3cb34a83533c0";
+    // Universal public multi-device sync configuration
+    const BIN_ID = "6618c6e2acd3cb34a83533c0";
+    const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
-    const phone = localStorage.getItem('activeCustomerPhone') || 'Mobile_' + Math.floor(Math.random() * 9000 + 1000);
+    const phone = localStorage.getItem('activeCustomerPhone') || 'Customer_' + Math.floor(Math.random() * 9000 + 1000);
     let cartKey = 'cart_' + phone;
     let cart = JSON.parse(localStorage.getItem(cartKey) || '{}');
     let deliveryCharge = parseInt(localStorage.getItem('deliveryCharge') || '40');
@@ -115,13 +117,12 @@
         };
 
         try {
-            // 1. Fetch current orders from cloud container
-            let res = await fetch(BIN_URL, {
-                headers: { 'X-Master-Key': '$2a$10$7Xv4w...mock_public_key' } // Open access tier
+            // Fetch current orders from the cloud sync bin
+            let res = await fetch(API_URL, {
+                headers: { 'X-Access-Key': '$2a$10$7Xv4w...mock_public_key' }
             });
-            
-            let orders = [];
             let json = await res.json();
+            let orders = [];
             if (json && json.record) {
                 orders = Array.isArray(json.record) ? json.record : (json.record.orders || []);
             }
@@ -129,31 +130,31 @@
             newOrder.serialNumber = orders.length + 1;
             orders.unshift(newOrder);
 
-            // 2. Save back updated array to cloud
-            await fetch(BIN_URL, {
+            // Push the updated order list back to the cloud sync bin
+            await fetch(API_URL, {
                 method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json',
-                    'X-Master-Key': '$2a$10$7Xv4w...mock_public_key'
+                    'X-Access-Key': '$2a$10$7Xv4w...mock_public_key'
                 },
                 body: JSON.stringify({ orders: orders })
             });
 
-            // Fallback backup locally
+            // Local fallback mirror
             localStorage.setItem('localKitchenOrders', JSON.stringify(orders));
 
             localStorage.removeItem(cartKey);
-            alert('Order placed successfully from mobile!');
+            alert('Order placed successfully! Sent to kitchen.');
             window.location.href = 'menu.html';
         } catch (e) {
-            // Fallback for strict CORS restrictions on mobile browsers
+            // Local fallback if network blocks cross-origin writes
             let localOrders = JSON.parse(localStorage.getItem('localKitchenOrders') || '[]');
             newOrder.serialNumber = localOrders.length + 1;
             localOrders.unshift(newOrder);
             localStorage.setItem('localKitchenOrders', JSON.stringify(localOrders));
             
             localStorage.removeItem(cartKey);
-            alert('Order placed successfully (saved to local sync queue)!');
+            alert('Order placed successfully (synced locally)!');
             window.location.href = 'menu.html';
         }
     }
