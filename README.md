@@ -20,24 +20,27 @@
 </head>
 <body>
 
-  <div class="checkout-box">
+    <div class="checkout-box">
         <h2>Order Checkout</h2>
         <p style="font-size: 13px; color: #718096; margin-bottom: 20px;">We require your live Google Maps location pin to dispatch your order.</p>
 
-   <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
+        <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
         
-   <div id="locationStatusDisplay" class="location-status">
+        <div id="locationStatusDisplay" class="location-status">
             ❌ No location pinned yet. Please click the button above.
         </div>
 
-   <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
+        <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
         <div id="checkoutSummary" style="text-align: left;"></div>
 
-   <button class="btn" onclick="placeOrder()">Place Order Now</button>
+        <button class="btn" onclick="placeOrder()">Place Order Now</button>
         <button class="btn btn-back" onclick="returnToMenu()">← Return to Menu</button>
     </div>
 
 <script>
+    // Global online cloud storage endpoint
+    const BIN_URL = "https://api.jsonbin.io/v3/b/6618c6e2acd3cb34a83533c0";
+
     const phone = localStorage.getItem('activeCustomerPhone') || 'Customer_' + Math.floor(Math.random() * 9000 + 1000);
     let cartKey = 'cart_' + phone;
     let cart = JSON.parse(localStorage.getItem(cartKey) || '{}');
@@ -89,7 +92,7 @@
         });
     }
 
-    function placeOrder() {
+    async function placeOrder() {
         if (!verifiedMapsLink) {
             alert('Error: You must fetch your Google Maps location pin before checking out!');
             return;
@@ -112,15 +115,30 @@
             time: new Date().toLocaleTimeString()
         };
 
-        let allOrders = JSON.parse(localStorage.getItem('master_orders') || '[]');
-        allOrders.unshift(newOrder);
-        
-        localStorage.setItem('master_orders', JSON.stringify(allOrders));
-        localStorage.setItem('force_sync', Date.now());
+        try {
+            // Fetch live online order list
+            let res = await fetch(BIN_URL);
+            let json = await res.json();
+            let orders = [];
+            if (json && json.record) {
+                orders = Array.isArray(json.record) ? json.record : (json.record.orders || []);
+            }
 
-        localStorage.removeItem(cartKey);
-        alert('Order placed successfully!');
-        window.location.href = 'https://kshitij-bhuwania.github.io/kitchen/';
+            orders.unshift(newOrder);
+
+            // Push updated list to online storage over the internet
+            await fetch(BIN_URL, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orders: orders })
+            });
+
+            localStorage.removeItem(cartKey);
+            alert('Order placed successfully!');
+            window.location.href = 'https://kshitij-bhuwania.github.io/kitchen/';
+        } catch (e) {
+            alert('Network connection error. Please try again.');
+        }
     }
 
     function returnToMenu() {
