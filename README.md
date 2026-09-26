@@ -20,20 +20,20 @@
 </head>
 <body>
 
-    <div class="checkout-box">
+  <div class="checkout-box">
         <h2>Order Checkout</h2>
         <p style="font-size: 13px; color: #718096; margin-bottom: 20px;">We require your live Google Maps location pin to dispatch your order.</p>
 
-        <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
+   <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
         
-        <div id="locationStatusDisplay" class="location-status">
+   <div id="locationStatusDisplay" class="location-status">
             ❌ No location pinned yet. Please click the button above.
         </div>
 
-        <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
+   <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
         <div id="checkoutSummary" style="text-align: left;"></div>
 
-        <button class="btn" onclick="placeOrder()">Place Order Now</button>
+   <button class="btn" onclick="placeOrder()">Place Order Now</button>
         <button class="btn btn-back" onclick="returnToMenu()">← Return to Menu</button>
     </div>
 
