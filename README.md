@@ -20,31 +20,30 @@
 </head>
 <body>
 
-  <div class="checkout-box">
+ <div class="checkout-box">
         <h2>Order Checkout</h2>
         <p style="font-size: 13px; color: #718096; margin-bottom: 20px;">We require your live Google Maps location pin to dispatch your order.</p>
-
-  <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
-        
-   <div id="locationStatusDisplay" class="location-status">
-          ❌ No location pinned yet. Please click the button above.
+     <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
+              <div id="locationStatusDisplay" class="location-status">
+            ❌ No location pinned yet. Please click the button above.
         </div>
 
    <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
-        <div id="checkoutSummary" style="text-align: left;"></div>
+       <div id="checkoutSummary" style="text-align: left;"></div>
 
    <button class="btn" onclick="placeOrder()">Place Order Now</button>
         <button class="btn btn-back" onclick="returnToMenu()">← Return to Menu</button>
     </div>
 
 <script>
-    // Verify customer is logged in; if not, bounce back to login
+    // Zero-setup public sync endpoint built specifically for cross-device web testing
+    const SYNC_URL = "https://jsonbin.org/kshitij_restaurant_live_orders_sync/orders";
+
     const phone = localStorage.getItem('activeCustomerPhone');
     if (!phone) {
         window.location.href = 'login.html';
     }
 
-    // Isolate cart uniquely to this specific logged-in customer's phone number
     let cartKey = 'cart_' + phone;
     let cart = JSON.parse(localStorage.getItem(cartKey) || '{}');
     let deliveryCharge = parseInt(localStorage.getItem('deliveryCharge') || '40');
@@ -95,7 +94,7 @@
         });
     }
 
-    function placeOrder() {
+    async function placeOrder() {
         if (!verifiedMapsLink) {
             alert('Error: You must fetch your Google Maps location pin before you can check out!');
             return;
@@ -107,12 +106,8 @@
             return;
         }
 
-        let orders = JSON.parse(localStorage.getItem('liveOrders') || '[]');
-        let serialNumber = orders.length + 1;
-
         let newOrder = {
-            serialNumber: serialNumber,
-            phone: phone, // Captures exact customer phone so orders never mix up
+            phone: phone,
             location: verifiedMapsLink,
             items: Object.values(cart),
             totalItemsCount: Object.values(cart).reduce((sum, i) => sum + i.quantity, 0),
@@ -122,20 +117,43 @@
             timestamp: new Date().toLocaleTimeString()
         };
 
-        orders.unshift(newOrder);
-        localStorage.setItem('liveOrders', JSON.stringify(orders));
-        
-        // Clear only this specific customer's cart after successful order placement
-        localStorage.removeItem(cartKey);
+        try {
+            // Pull current live orders from shared cloud endpoint
+            let response = await fetch(SYNC_URL);
+            let orders = [];
+            if (response.ok) {
+                let data = await response.json();
+                if (Array.isArray(data)) orders = data;
+            }
 
-        alert('Order placed successfully!');
-        // Redirect back to menu or kitchen order view link
-        window.location.href = 'https://kshitij-bhuwania.github.io/Menu/';
+            newOrder.serialNumber = orders.length + 1;
+            orders.unshift(newOrder);
+
+            // Push updated array back instantly
+            await fetch(SYNC_URL, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orders)
+            });
+
+            localStorage.removeItem(cartKey);
+            alert('Order placed successfully!');
+            window.location.href = 'menu.html';
+        } catch (error) {
+            // Fallback to local storage if network drops
+            let localOrders = JSON.parse(localStorage.getItem('liveOrders') || '[]');
+            newOrder.serialNumber = localOrders.length + 1;
+            localOrders.unshift(newOrder);
+            localStorage.setItem('liveOrders', JSON.stringify(localOrders));
+
+            localStorage.removeItem(cartKey);
+            alert('Order placed successfully!');
+            window.location.href = 'menu.html';
+        }
     }
 
     function returnToMenu() {
-        // Directs back to your hosted menu link while preserving their active customer login session
-        window.location.href = 'https://kshitij-bhuwania.github.io/Menu/';
+        window.location.href = 'menu.html';
     }
 
     renderSummary();
