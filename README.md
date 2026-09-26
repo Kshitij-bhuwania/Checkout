@@ -38,10 +38,6 @@
     </div>
 
 <script>
-    // Universal public multi-device sync configuration
-    const BIN_ID = "6618c6e2acd3cb34a83533c0";
-    const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
-
     const phone = localStorage.getItem('activeCustomerPhone') || 'Customer_' + Math.floor(Math.random() * 9000 + 1000);
     let cartKey = 'cart_' + phone;
     let cart = JSON.parse(localStorage.getItem(cartKey) || '{}');
@@ -93,7 +89,7 @@
         });
     }
 
-    async function placeOrder() {
+    function placeOrder() {
         if (!verifiedMapsLink) {
             alert('Error: You must fetch your Google Maps location pin before checking out!');
             return;
@@ -106,57 +102,25 @@
         }
 
         let newOrder = {
+            id: 'ORD-' + Math.floor(Math.random() * 90000 + 10000),
             phone: phone,
             location: verifiedMapsLink,
             items: Object.values(cart),
-            totalItemsCount: Object.values(cart).reduce((sum, i) => sum + i.quantity, 0),
             itemTotal: itemTotal,
             deliveryCharge: deliveryCharge,
             grandTotal: itemTotal + deliveryCharge,
-            timestamp: new Date().toLocaleTimeString()
+            time: new Date().toLocaleTimeString()
         };
 
-        try {
-            // Fetch current orders from the cloud sync bin
-            let res = await fetch(API_URL, {
-                headers: { 'X-Access-Key': '$2a$10$7Xv4w...mock_public_key' }
-            });
-            let json = await res.json();
-            let orders = [];
-            if (json && json.record) {
-                orders = Array.isArray(json.record) ? json.record : (json.record.orders || []);
-            }
+        let allOrders = JSON.parse(localStorage.getItem('master_orders') || '[]');
+        allOrders.unshift(newOrder);
+        
+        localStorage.setItem('master_orders', JSON.stringify(allOrders));
+        localStorage.setItem('force_sync', Date.now());
 
-            newOrder.serialNumber = orders.length + 1;
-            orders.unshift(newOrder);
-
-            // Push the updated order list back to the cloud sync bin
-            await fetch(API_URL, {
-                method: 'PUT',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'X-Access-Key': '$2a$10$7Xv4w...mock_public_key'
-                },
-                body: JSON.stringify({ orders: orders })
-            });
-
-            // Local fallback mirror
-            localStorage.setItem('localKitchenOrders', JSON.stringify(orders));
-
-            localStorage.removeItem(cartKey);
-            alert('Order placed successfully! Sent to kitchen.');
-            window.location.href = 'menu.html';
-        } catch (e) {
-            // Local fallback if network blocks cross-origin writes
-            let localOrders = JSON.parse(localStorage.getItem('localKitchenOrders') || '[]');
-            newOrder.serialNumber = localOrders.length + 1;
-            localOrders.unshift(newOrder);
-            localStorage.setItem('localKitchenOrders', JSON.stringify(localOrders));
-            
-            localStorage.removeItem(cartKey);
-            alert('Order placed successfully (synced locally)!');
-            window.location.href = 'menu.html';
-        }
+        localStorage.removeItem(cartKey);
+        alert('Order placed successfully!');
+        window.location.href = 'https://kshitij-bhuwania.github.io/kitchen/';
     }
 
     function returnToMenu() {
