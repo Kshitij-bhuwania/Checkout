@@ -38,8 +38,8 @@
     </div>
 
 <script>
-    // Global online cloud storage endpoint
-    const BIN_URL = "https://api.jsonbin.io/v3/b/6618c6e2acd3cb34a83533c0";
+    // Your Firebase Database URL
+    const FIREBASE_URL = "https://test-d34cf-default-rtdb.firebaseio.com";
 
     const phone = localStorage.getItem('activeCustomerPhone') || 'Customer_' + Math.floor(Math.random() * 9000 + 1000);
     let cartKey = 'cart_' + phone;
@@ -116,33 +116,30 @@
         };
 
         try {
-            // Fetch live online order list
-            let res = await fetch(BIN_URL);
-            let json = await res.json();
-            let orders = [];
-            if (json && json.record) {
-                orders = Array.isArray(json.record) ? json.record : (json.record.orders || []);
-            }
+            // Fetch existing orders from Firebase
+            let res = await fetch(`${FIREBASE_URL}/orders.json`);
+            let orders = await res.json();
+            if (!Array.isArray(orders)) orders = [];
 
             orders.unshift(newOrder);
 
-            // Push updated list to online storage over the internet
-            await fetch(BIN_URL, {
+            // Save updated array back to Firebase
+            await fetch(`${FIREBASE_URL}/orders.json`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ orders: orders })
+                body: JSON.stringify(orders)
             });
 
             localStorage.removeItem(cartKey);
             alert('Order placed successfully!');
             window.location.href = 'https://kshitij-bhuwania.github.io/kitchen/';
         } catch (e) {
-            alert('Network connection error. Please try again.');
+            alert('Network error placing order. Please check your connection.');
         }
     }
 
     function returnToMenu() {
-        window.location.href = 'menu.html';
+        window.location.href = 'https://kshitij-bhuwania.github.io/Menu/';
     }
 
     renderSummary();
