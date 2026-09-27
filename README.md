@@ -26,7 +26,7 @@
         <!-- Order Summary Card -->
         <div class="card">
             <h3>Your Order Summary</h3>
-            <div id="cartItemsList">Loading cart...</div>
+            <div id="cartItemsList">Loading cart from menu...</div>
             
             <div style="margin-top: 15px; font-size: 14px;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
@@ -81,16 +81,68 @@
         return R * c;
     }
 
-    function loadCart() {
-        // Retrieve cart stored from menu page (expects array of {name, price, quantity})
-        cart = JSON.parse(localStorage.getItem('cart') || '[]');
+    async function loadCartAndVerifyMenu() {
+        // Fetch current live menu from Firebase to ensure items match admin updates
+        let liveMenuData = null;
+        try {
+            let res = await fetch(`${FIREBASE_URL}/menu.json`);
+            let data = await res.json();
+            if (data && data.categories) {
+                liveMenuData = data;
+            }
+        } catch (e) {
+            console.log("Could not fetch live menu verification.");
+        }
+
+        // Retrieve local cart saved from menu page
+        let rawCart = localStorage.getItem('cart');
+        if (!rawCart) {
+            for (let i = 0; i < localStorage.length; i++) {
+                let key = localStorage.key(i);
+                if (key && key.includes('cart')) {
+                    rawCart = localStorage.getItem(key);
+                    break;
+                }
+            }
+        }
+
+        let localCart = rawCart ? JSON.parse(rawCart) : [];
+        cart = [];
+
+        // Map cart items against live Firebase menu to ensure prices/names are synced correctly
+        if (Array.isArray(localCart) && liveMenuData) {
+            localCart.forEach(cartItem => {
+                let found = false;
+                liveMenuData.categories.forEach(cat => {
+                    if (cat.items) {
+                        cat.items.forEach(menuItem => {
+                            if (menuItem.name.toLowerCase() === cartItem.name.toLowerCase()) {
+                                cart.push({
+                                    name: menuItem.name,
+                                    price: menuItem.price, // Use latest price from admin menu
+                                    quantity: cartItem.quantity || 1
+                                });
+                                found = true;
+                            }
+                        });
+                    }
+                });
+                if (!found) {
+                    // Keep item even if not found in live menu fallback
+                    cart.push(cartItem);
+                }
+            });
+        } else {
+            cart = Array.isArray(localCart) ? localCart : [];
+        }
+
         renderSummary();
     }
 
     function renderSummary() {
         let container = document.getElementById('cartItemsList');
         if (cart.length === 0) {
-            container.innerHTML = '<p style="color:#718096; font-size:14px;">Your cart is empty.</p>';
+            container.innerHTML = '<p style="color:#718096; font-size:14px;">Your cart is empty. Please add items from the menu.</p>';
             document.getElementById('subtotalText').innerText = '₹0';
             document.getElementById('deliveryText').innerText = '₹' + deliveryCharge;
             document.getElementById('grandTotalText').innerText = '₹' + deliveryCharge;
@@ -100,9 +152,9 @@
         let html = '';
         let subtotal = 0;
         cart.forEach(item => {
-            let itemTotal = item.price * item.quantity;
+            let itemTotal = (item.price || 0) * (item.quantity || 1);
             subtotal += itemTotal;
-            html += `<div class="item-row"><span>${item.name} (x${item.quantity})</span><span>₹${itemTotal}</span></div>`;
+            html += `<div class="item-row"><span>${item.name} (x${item.quantity || 1})</span><span>₹${itemTotal}</span></div>`;
         });
 
         container.innerHTML = html;
@@ -120,7 +172,7 @@
         const statusBox = document.getElementById('locationStatusDisplay');
         statusBox.style.background = '#ebf8ff';
         statusBox.style.color = '#2b6cb0';
-        statusBox.innerHTML = '🔄 Fetching your location and syncing admin pricing rules...';
+        statusBox.innerHTML = '🔄 Fetching location & syncing delivery tiers from Admin Panel...';
 
         navigator.geolocation.getCurrentPosition(async (position) => {
             const lat = position.coords.latitude;
@@ -129,17 +181,17 @@
             
             const distanceKm = calculateDistance(SHOP_LAT, SHOP_LNG, lat, lng);
 
-            // Fetch live delivery rules from Firebase Admin settings
+            // Fetch live delivery rules configured in Admin Panel via Firebase
             let rules = { tier1Dist: 3, tier1Price: 30, tier2Dist: 6, tier2Price: 60, farPrice: 100 };
             try {
                 let res = await fetch(`${FIREBASE_URL}/settings/delivery.json`);
                 let data = await res.json();
                 if (data) rules = data;
             } catch (e) {
-                console.log("Could not load rules from Firebase, using defaults.");
+                console.log("Could not load delivery rules from Firebase, using defaults.");
             }
 
-            // Apply admin rules
+            // Apply distance tier charges
             if (distanceKm <= rules.tier1Dist) {
                 deliveryCharge = rules.tier1Price;
             } else if (distanceKm <= rules.tier2Dist) {
@@ -176,7 +228,7 @@
             return;
         }
 
-        let subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        let subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
         let grandTotal = subtotal + deliveryCharge;
 
         let newOrder = {
@@ -204,13 +256,13 @@
 
             localStorage.removeItem('cart');
             alert('Order placed successfully!');
-            window.location.href = 'https://kshitij-bhuwania.github.io/Menu/'; // Redirect back to menu or success page
+            window.location.href = 'https://kshitij-bhuwania.github.io/Menu/';
         } catch (e) {
             alert('Failed to place order. Check your internet connection.');
         }
     }
 
-    loadCart();
+    loadCartAndVerifyMenu();
 </script>
 </body>
 </html>
