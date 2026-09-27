@@ -161,7 +161,7 @@
 
             localStorage.removeItem(cartKey);
             alert('Order placed successfully!');
-            window.location.href = 'https://kshitij-bhuwania.github.io/kitchen/';
+            window.location.href = '';
         } catch (e) {
             alert('Network error placing order. Please check your connection.');
         }
