@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -39,7 +39,7 @@
 <script>
     const FIREBASE_URL = "https://test-d34cf-default-rtdb.europe-west1.firebasedatabase.app";
     
-    // Faven Lightings Shop Coordinates (Byatarayanapura, Bengaluru)
+    // Shop Coordinates (Byatarayanapura, Bengaluru)
     const SHOP_LAT = 13.0650;
     const SHOP_LNG = 77.5880;
 
@@ -96,7 +96,7 @@
         const statusBox = document.getElementById('locationStatusDisplay');
         statusBox.style.background = '#ebf8ff';
         statusBox.style.color = '#2b6cb0';
-        statusBox.innerHTML = '🔄 Fetching location & syncing delivery charges...';
+        statusBox.innerHTML = '🔄 Fetching location & calculating distance delivery fee...';
 
         navigator.geolocation.getCurrentPosition(async (position) => {
             const lat = position.coords.latitude;
@@ -106,7 +106,7 @@
             const distanceKm = calculateDistance(SHOP_LAT, SHOP_LNG, lat, lng);
 
             // Fetch live delivery rules configured in Admin Panel
-            let rules = { tier1Dist: 3, tier1Price: 30, tier2Dist: 6, tier2Price: 60, farPrice: 100 };
+            let rules = { baseKm: 3, basePrice: 30, extraPricePerKm: 15 };
             try {
                 let res = await fetch(`${FIREBASE_URL}/settings/delivery.json`);
                 let data = await res.json();
@@ -115,13 +115,12 @@
                 console.log("Could not load rules from Firebase, using defaults.");
             }
 
-            // Apply distance tier charges
-            if (distanceKm <= rules.tier1Dist) {
-                deliveryCharge = rules.tier1Price;
-            } else if (distanceKm <= rules.tier2Dist) {
-                deliveryCharge = rules.tier2Price;
+            // Calculate distance-based delivery fee
+            if (distanceKm <= rules.baseKm) {
+                deliveryCharge = rules.basePrice;
             } else {
-                deliveryCharge = rules.farPrice;
+                let extraKm = distanceKm - rules.baseKm;
+                deliveryCharge = rules.basePrice + Math.ceil(extraKm * rules.extraPricePerKm);
             }
 
             renderSummary();
@@ -152,7 +151,7 @@
             id: 'ORD-' + Math.floor(Math.random() * 90000 + 10000),
             phone: phone,
             location: verifiedMapsLink,
-            items: Object.vvalues ? Object.values(cart) : Object.keys(cart).map(k => cart[k]),
+            items: Object.values(cart),
             itemTotal: itemTotal,
             deliveryCharge: deliveryCharge,
             grandTotal: itemTotal + deliveryCharge,
