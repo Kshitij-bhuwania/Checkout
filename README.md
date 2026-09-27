@@ -20,30 +20,48 @@
 </head>
 <body>
 
- <div class="checkout-box">
+    <div class="checkout-box">
         <h2>Order Checkout</h2>
-        <p style="font-size: 13px; color: #718096; margin-bottom: 20px;">We require your live Google Maps location pin to dispatch your order.</p>
-  <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
-      
-   <div id="locationStatusDisplay" class="location-status">
-        ❌ No location pinned yet. Please click the button above.
+        <p style="font-size: 13px; color: #718096; margin-bottom: 20px;">We require your live Google Maps location pin to calculate delivery from Faven Lightings.</p>
+
+        <button class="btn btn-map" onclick="fetchLiveLocation()">📍 Fetch Live Google Maps Pin</button>
+        
+        <div id="locationStatusDisplay" class="location-status">
+            ❌ No location pinned yet. Please click the button above.
         </div>
 
-   <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
+        <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
         <div id="checkoutSummary" style="text-align: left;"></div>
 
-   <button class="btn" onclick="placeOrder()">Place Order Now</button>
+        <button class="btn" onclick="placeOrder()">Place Order Now</button>
         <button class="btn btn-back" onclick="returnToMenu()">← Return to Menu</button>
     </div>
 
 <script>
     const FIREBASE_URL = "https://test-d34cf-default-rtdb.europe-west1.firebasedatabase.app";
 
+    // Faven Lightings Shop Coordinates (Byatarayanapura, International Airport Road, Bengaluru)
+    const SHOP_LAT = 13.0650;
+    const SHOP_LNG = 77.5880;
+
     const phone = localStorage.getItem('activeCustomerPhone') || 'Customer_' + Math.floor(Math.random() * 9000 + 1000);
     let cartKey = 'cart_' + phone;
     let cart = JSON.parse(localStorage.getItem(cartKey) || '{}');
     let deliveryCharge = parseInt(localStorage.getItem('deliveryCharge') || '40');
     let verifiedMapsLink = '';
+
+    // Calculate distance in kilometers using the Haversine formula
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
 
     function renderSummary() {
         const container = document.getElementById('checkoutSummary');
@@ -65,7 +83,7 @@
         let grandTotal = itemTotal > 0 ? itemTotal + deliveryCharge : 0;
         html += `<hr style="border:0; border-top:1px dashed #cbd5e0; margin:15px 0;">`;
         html += `<div class="summary-line"><span>Item Total:</span><span>₹${itemTotal}</span></div>`;
-        html += `<div class="summary-line"><span>Delivery Fee:</span><span>₹${deliveryCharge}</span></div>`;
+        html += `<div class="summary-line"><span>Delivery Fee (Auto-calculated):</span><span>₹${deliveryCharge}</span></div>`;
         html += `<div class="summary-line" style="font-weight:bold; font-size:16px; color:#1a202c;"><span>Grand Total:</span><span>₹${grandTotal}</span></div>`;
 
         container.innerHTML = html;
@@ -81,10 +99,25 @@
             const lng = position.coords.longitude;
             verifiedMapsLink = `https://www.google.com/maps?q=${lat},${lng}`;
             
+            // Calculate distance from Faven Lightings
+            const distanceKm = calculateDistance(SHOP_LAT, SHOP_LNG, lat, lng);
+
+            // Apply delivery charge rules based on distance
+            if (distanceKm <= 3) {
+                deliveryCharge = 30;
+            } else if (distanceKm <= 6) {
+                deliveryCharge = 60;
+            } else {
+                deliveryCharge = 100;
+            }
+
+            localStorage.setItem('deliveryCharge', deliveryCharge);
+            renderSummary();
+
             const statusBox = document.getElementById('locationStatusDisplay');
             statusBox.style.background = '#c6f6d5';
             statusBox.style.color = '#22543d';
-            statusBox.innerHTML = `✅ Location Pinned Successfully!<br><a href="${verifiedMapsLink}" target="_blank" style="color:#2b6cb0; font-size:12px;">View Map ↗</a>`;
+            statusBox.innerHTML = `✅ Location Pinned! (${distanceKm.toFixed(1)} km away)<br>Delivery Fee set to ₹${deliveryCharge}<br><a href="${verifiedMapsLink}" target="_blank" style="color:#2b6cb0; font-size:12px;">View Map ↗</a>`;
         }, () => {
             alert('Unable to retrieve location. Please allow GPS permissions.');
         });
@@ -128,7 +161,7 @@
 
             localStorage.removeItem(cartKey);
             alert('Order placed successfully!');
-            window.location.href = '';
+            window.location.href = 'https://kshitij-bhuwania.github.io/kitchen/';
         } catch (e) {
             alert('Network error placing order. Please check your connection.');
         }
