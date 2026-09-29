@@ -39,9 +39,9 @@
 <script>
     const FIREBASE_URL = "https://test-d34cf-default-rtdb.europe-west1.firebasedatabase.app";
     
-    // Shop Coordinates (Byatarayanapura, Bengaluru)
-    const SHOP_LAT = 13.067825;
-    const SHOP_LNG = 77.592820;
+    // Shop Coordinates (Update these with your precise shop coordinates)
+    const SHOP_LAT = 13.0650;
+    const SHOP_LNG = 77.5880;
 
     const phone = localStorage.getItem('activeCustomerPhone') || 'Customer_' + Math.floor(Math.random() * 9000 + 1000);
     let cartKey = 'cart_' + phone;
@@ -49,16 +49,30 @@
     let deliveryCharge = 30; // default fallback
     let verifiedMapsLink = '';
 
-    function calculateDistance(lat1, lon1, lat2, lon2) {
+    // Function to calculate actual driving distance via road networks
+    async function getDrivingDistance(lat1, lon1, lat2, lon2) {
+        try {
+            // OSRM routing API (free, calculates actual road distance)
+            const url = `https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=false`;
+            let response = await fetch(url);
+            let data = await response.json();
+            
+            if (data.routes && data.routes.length > 0) {
+                // distance is returned in meters, convert to kilometers
+                return data.routes[0].distance / 1000;
+            }
+        } catch (e) {
+            console.log("Routing network error, using straight-line backup.");
+        }
+        
+        // Fallback: Haversine straight-line formula if network fails
         const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
     function renderSummary() {
@@ -96,14 +110,15 @@
         const statusBox = document.getElementById('locationStatusDisplay');
         statusBox.style.background = '#ebf8ff';
         statusBox.style.color = '#2b6cb0';
-        statusBox.innerHTML = '🔄 Fetching location & calculating distance delivery fee...';
+        statusBox.innerHTML = '🔄 Calculating road route distance...';
 
         navigator.geolocation.getCurrentPosition(async (position) => {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             verifiedMapsLink = `https://www.google.com/maps?q=${lat},${lng}`;
             
-            const distanceKm = calculateDistance(SHOP_LAT, SHOP_LNG, lat, lng);
+            // Get actual driving distance via map roads
+            const distanceKm = await getDrivingDistance(SHOP_LAT, SHOP_LNG, lat, lng);
 
             // Fetch live delivery rules configured in Admin Panel
             let rules = { baseKm: 3, basePrice: 30, extraPricePerKm: 15 };
@@ -127,7 +142,7 @@
 
             statusBox.style.background = '#c6f6d5';
             statusBox.style.color = '#22543d';
-            statusBox.innerHTML = `✅ Location Pinned (${distanceKm.toFixed(1)} km away)!<br><a href="${verifiedMapsLink}" target="_blank" style="color:#2b6cb0; font-size:12px;">View Map ↗</a>`;
+            statusBox.innerHTML = `✅ Location Pinned (${distanceKm.toFixed(1)} km driving distance)!<br><a href="${verifiedMapsLink}" target="_blank" style="color:#2b6cb0; font-size:12px;">View Map ↗</a>`;
         }, () => {
             statusBox.style.background = '#fed7d7';
             statusBox.style.color = '#9b2c2c';
