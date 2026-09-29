@@ -40,8 +40,8 @@
     const FIREBASE_URL = "https://test-d34cf-default-rtdb.europe-west1.firebasedatabase.app";
     
     // Shop Coordinates (Update these with your precise shop coordinates)
-    const SHOP_LAT = 13.0650;
-    const SHOP_LNG = 77.5880;
+    const SHOP_LAT = 13.067825;
+    const SHOP_LNG = 77.592820;
 
     const phone = localStorage.getItem('activeCustomerPhone') || 'Customer_' + Math.floor(Math.random() * 9000 + 1000);
     let cartKey = 'cart_' + phone;
